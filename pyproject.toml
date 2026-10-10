@@ -1,0 +1,32 @@
+[project]
+name = "hackucdbackend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Yu Xuan", email = "yuxuanlow013@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.143.0",
+    "greenlet>=3.1.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.10.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
+    "sqlalchemy>=2.1.4",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+hackucdbackend = "hackucdbackend:main"
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"
