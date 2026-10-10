@@ -34,11 +34,30 @@ class MealCreateResponse(BaseModel):
     meal_id: UUID
     image_url: str
     meal_name: str
+    detected_ingredients: List[str] = Field(default_factory=list, description="Foods and ingredients detected on the plate")
+    plant_colors: List[str] = Field(default_factory=list, description="Detected plant botanical colors")
+    upf_tier: Optional[str] = Field(None, description="Processing classification level")
+    confidence: Optional[float] = Field(None, description="Vision detection confidence")
+    requires_manual_tags: bool = Field(False, description="Flag indicating if low confidence requires user verification")
     scores: Dict[str, int]
     normalized_score: int
     reassurance_note: str
-    plant_colors: List[str] = Field(default_factory=list)
     created_at: datetime
+
+
+class MealUpdateRequest(BaseModel):
+    meal_name: Optional[str] = Field(None, max_length=150, description="Corrected or updated meal name")
+    detected_ingredients: Optional[List[str]] = Field(None, description="Corrected list of detected foods/ingredients")
+    plant_colors: Optional[List[str]] = Field(None, description="Corrected botanical plant colors")
+    upf_tier: Optional[str] = Field(
+        None,
+        pattern="^(unprocessed|minimally_processed|processed|ultra_processed)$",
+        description="Corrected UPF tier",
+    )
+    plant_score: Optional[int] = Field(None, ge=0, le=50, description="Optional manual override of plant points")
+    whole_food_score: Optional[int] = Field(None, ge=0, le=30, description="Optional manual override of whole food points")
+    protein_score: Optional[int] = Field(None, ge=0, le=20, description="Optional manual override of protein points")
+    penalty_score: Optional[int] = Field(None, ge=0, le=20, description="Optional manual override of penalty score")
 
 
 class FeedItemResponse(BaseModel):

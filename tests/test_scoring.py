@@ -116,3 +116,19 @@ def test_get_score_breakdown():
         "upf_penalty": 0,
         "raw_total": 75,
     }
+
+
+def test_calculate_score_from_values():
+    from hackucdbackend.services.scoring import calculate_score_from_values
+    profile = DemographicProfile(age=20, sex="female", activity_level="moderate", role="student")
+    raw, norm = calculate_score_from_values(
+        plant_points=30,
+        whole_food_points=25,
+        protein_points=20,
+        upf_penalty=0,
+        plant_colors=["green", "red"],
+        upf_tier="unprocessed",
+        profile=profile,
+    )
+    assert raw == 75
+    assert norm == 86  # 75 * 1.15 = 86.25

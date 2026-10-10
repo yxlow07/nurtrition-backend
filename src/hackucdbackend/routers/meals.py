@@ -13,6 +13,7 @@ from hackucdbackend.models.user import User
 from hackucdbackend.schemas.meal import (
     MealAuditResponse,
     MealCreateResponse,
+    MealUpdateRequest,
     ReactionRequest,
     ReactionResponse,
 )
@@ -20,6 +21,7 @@ from hackucdbackend.services.ai_engine import run_vision_analysis
 from hackucdbackend.services.scoring import (
     calculate_normalized_score,
     calculate_raw_score,
+    calculate_score_from_values,
     get_score_breakdown,
 )
 from hackucdbackend.services.storage import (
@@ -145,10 +147,112 @@ async def upload_meal(
         meal_id=meal.id,
         image_url=meal.image_url,
         meal_name=meal.meal_name or "Meal",
+        detected_ingredients=meal.detected_ingredients or [],
+        plant_colors=meal.plant_colors or [],
+        upf_tier=meal.upf_tier,
+        confidence=float(meal.ai_confidence) if meal.ai_confidence is not None else None,
+        requires_manual_tags=meal.requires_manual_tags,
         scores=score_breakdown,
         normalized_score=meal.normalized_score,
         reassurance_note=meal.reassurance_note or "",
+        created_at=meal.created_at,
+    )
+
+
+@router.patch(
+    "/{meal_id}",
+    response_model=MealAuditResponse,
+    summary="Edit detected food, ingredients, plant colors, or UPF tier",
+)
+@router.put(
+    "/{meal_id}",
+    response_model=MealAuditResponse,
+    summary="Edit detected food, ingredients, plant colors, or UPF tier",
+)
+async def update_meal_detected_food(
+    meal_id: uuid.UUID,
+    payload: MealUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MealAuditResponse:
+    stmt = (
+        select(Meal)
+        .options(selectinload(Meal.reactions))
+        .where(Meal.id == meal_id)
+    )
+    res = await db.execute(stmt)
+    meal = res.scalar_one_or_none()
+
+    if not meal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Meal with ID '{meal_id}' not found.",
+        )
+
+    if meal.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit meals that you uploaded.",
+        )
+
+    # Apply food detection corrections
+    if payload.meal_name is not None:
+        meal.meal_name = payload.meal_name
+    if payload.detected_ingredients is not None:
+        meal.detected_ingredients = payload.detected_ingredients
+    if payload.plant_colors is not None:
+        meal.plant_colors = payload.plant_colors
+    if payload.upf_tier is not None:
+        meal.upf_tier = payload.upf_tier
+
+    # Apply points overrides if provided
+    if payload.plant_score is not None:
+        meal.plant_score = payload.plant_score
+    if payload.whole_food_score is not None:
+        meal.whole_food_score = payload.whole_food_score
+    if payload.protein_score is not None:
+        meal.protein_score = payload.protein_score
+    if payload.penalty_score is not None:
+        meal.penalty_score = payload.penalty_score
+
+    # Recalculate raw and demographic normalized score
+    raw_score, normalized_score = calculate_score_from_values(
+        plant_points=meal.plant_score,
+        whole_food_points=meal.whole_food_score,
+        protein_points=meal.protein_score,
+        upf_penalty=meal.penalty_score,
         plant_colors=meal.plant_colors or [],
+        upf_tier=meal.upf_tier or "unprocessed",
+        profile=current_user.profile,
+    )
+    meal.raw_score = raw_score
+    meal.normalized_score = normalized_score
+    meal.requires_manual_tags = False  # Mark resolved on user edit
+
+    await db.commit()
+    await db.refresh(meal)
+
+    reactions = [r.emoji for r in meal.reactions]
+    return MealAuditResponse(
+        id=meal.id,
+        user_id=meal.user_id,
+        family_id=meal.family_id,
+        image_url=meal.image_url,
+        preparation_context=meal.preparation_context,
+        meal_name=meal.meal_name,
+        detected_ingredients=meal.detected_ingredients or [],
+        plant_colors=meal.plant_colors or [],
+        upf_tier=meal.upf_tier,
+        plant_score=meal.plant_score,
+        whole_food_score=meal.whole_food_score,
+        protein_score=meal.protein_score,
+        penalty_score=meal.penalty_score,
+        raw_score=meal.raw_score,
+        normalized_score=meal.normalized_score,
+        reassurance_note=meal.reassurance_note,
+        ai_confidence=float(meal.ai_confidence) if meal.ai_confidence is not None else None,
+        requires_manual_tags=meal.requires_manual_tags,
+        reactions=reactions,
         created_at=meal.created_at,
     )
 

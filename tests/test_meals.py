@@ -60,6 +60,11 @@ async def test_upload_meal_success(client: AsyncClient, auth_headers: dict, regi
         assert data["scores"]["raw_total"] == 75
         # registered_user is student: with 2 plant colors -> 75 * 1.15 = 86
         assert data["normalized_score"] == 86
+        assert "tofu" in data["detected_ingredients"]
+        assert data["plant_colors"] == ["green", "orange"]
+        assert data["upf_tier"] == "unprocessed"
+        assert data["confidence"] == 0.92
+        assert data["requires_manual_tags"] is False
         assert "storage/v1/object/public/meals" in data["image_url"] or "/static/uploads" in data["image_url"]
 
 
@@ -145,3 +150,79 @@ async def test_react_to_nonexistent_meal(client: AsyncClient, auth_headers: dict
     fake_id = uuid.uuid4()
     res = await client.post(f"/api/v1/meals/{fake_id}/react", json={"emoji": "👍"}, headers=auth_headers)
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_meal_detected_food_success(client: AsyncClient, auth_headers: dict):
+    # 1. Upload low confidence meal (requires_manual_tags = True)
+    fake_image_file = ("meal.jpg", io.BytesIO(b"image_bytes"), "image/jpeg")
+    with patch(
+        "hackucdbackend.routers.meals.run_vision_analysis",
+        new_callable=AsyncMock,
+        return_value=sample_vision_analysis(confidence=0.40),
+    ):
+        up_res = await client.post("/api/v1/meals/upload", files={"image": fake_image_file}, headers=auth_headers)
+        meal_id = up_res.json()["meal_id"]
+        assert up_res.json()["requires_manual_tags"] is True
+
+    # 2. User edits misdetected food
+    update_payload = {
+        "meal_name": "Corrected Veggie Tofu Bowl",
+        "detected_ingredients": ["crispy tofu", "kale", "quinoa", "bell peppers"],
+        "plant_colors": ["green", "red", "yellow_white"],
+        "upf_tier": "unprocessed",
+        "plant_score": 35,
+        "whole_food_score": 25,
+        "protein_score": 20,
+        "penalty_score": 0,
+    }
+    patch_res = await client.patch(f"/api/v1/meals/{meal_id}", json=update_payload, headers=auth_headers)
+    assert patch_res.status_code == 200
+    updated = patch_res.json()
+    assert updated["meal_name"] == "Corrected Veggie Tofu Bowl"
+    assert "kale" in updated["detected_ingredients"]
+    assert "bell peppers" in updated["detected_ingredients"]
+    assert updated["plant_colors"] == ["green", "red", "yellow_white"]
+    assert updated["requires_manual_tags"] is False
+    # student bonus with 3 plant colors -> raw 80 * 1.15 = 92
+    assert updated["normalized_score"] == 92
+
+
+@pytest.mark.asyncio
+async def test_update_meal_forbidden_other_user(client: AsyncClient, auth_headers: dict):
+    # 1. Upload meal with registered_user
+    fake_image_file = ("meal.jpg", io.BytesIO(b"image_bytes"), "image/jpeg")
+    with patch(
+        "hackucdbackend.routers.meals.run_vision_analysis",
+        new_callable=AsyncMock,
+        return_value=sample_vision_analysis(),
+    ):
+        up_res = await client.post("/api/v1/meals/upload", files={"image": fake_image_file}, headers=auth_headers)
+        meal_id = up_res.json()["meal_id"]
+
+    # 2. Register a different user
+    reg2 = await client.post("/api/v1/auth/register", json={
+        "email": "intruder@school.edu",
+        "password": "password123",
+        "full_name": "Intruder User",
+        "role": "student",
+        "age": 22,
+        "sex": "male",
+        "activity_level": "moderate",
+    })
+    token2 = reg2.json()["access_token"]
+
+    # 3. Try to edit first user's meal
+    patch_res = await client.patch(
+        f"/api/v1/meals/{meal_id}",
+        json={"meal_name": "Hacked Meal Name"},
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert patch_res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_meal_not_found(client: AsyncClient, auth_headers: dict):
+    fake_id = uuid.uuid4()
+    patch_res = await client.patch(f"/api/v1/meals/{fake_id}", json={"meal_name": "None"}, headers=auth_headers)
+    assert patch_res.status_code == 404
