@@ -1,6 +1,6 @@
 # FamilyCareEats Backend
 
-Asynchronous Python orchestration service built on **FastAPI** connecting mobile clients, **Supabase** (PostgreSQL + Object Storage), and the **OpenRouter** AI gateway (Gemini 2.5 Flash multimodal & reasoning LLMs).
+Asynchronous Python orchestration service built on **FastAPI** connecting mobile clients, **Supabase** (PostgreSQL + Object Storage), and the **OpenRouter** AI gateway (Gemini 3.8 Flash multimodal & GPT 6 Luna reasoning LLMs).
 
 ---
 
