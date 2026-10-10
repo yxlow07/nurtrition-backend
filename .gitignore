@@ -12,3 +12,6 @@ wheels/
 hackucd.db
 ngrok.yml
 uploads/
+
+# SLOP
+instructions.md
