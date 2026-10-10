@@ -6,6 +6,8 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Virtual environments & secrets
 .venv
 .env
+hackucd.db
+ngrok.yml

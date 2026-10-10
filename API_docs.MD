@@ -8,8 +8,9 @@ This document contains complete API specifications, data contracts, and code sni
 
 ### Base URLs
 - **Local Development (Web / Emulator):** `http://localhost:8000`
+- **Remote / Mobile Testing (ngrok Tunnel):** `https://wheatless-jermaine-aftmost.ngrok-free.dev`
 - **Physical Device (Expo via LAN):** `http://<YOUR_LOCAL_IP>:8000` *(e.g. `http://192.168.1.100:8000`)*
-- **Interactive Swagger UI:** `http://localhost:8000/docs`
+- **Interactive Swagger UI:** `http://localhost:8000/docs` (or via ngrok: `https://wheatless-jermaine-aftmost.ngrok-free.dev/docs`)
 - **Alternative ReDoc UI:** `http://localhost:8000/redoc`
 
 ### Standard Headers
