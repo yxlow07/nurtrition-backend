@@ -100,3 +100,26 @@ async def test_run_vision_analysis_fallback_cascade():
 
         assert result.meal_name == "Chicken Salad"
         assert mock_post.call_count == 2
+
+
+def test_sanitize_analysis_scale_up():
+    from hackucdbackend.services.ai_engine import _sanitize_analysis
+
+    # Simulate an LLM that outputted 1-5 star ratings
+    low_analysis = AIMealAnalysis(
+        meal_name="Avocado Toast",
+        detected_ingredients=["avocado", "toast", "egg"],
+        plant_colors=["green"],
+        upf_tier="minimally_processed",
+        plant_points=1,
+        whole_food_points=3,
+        protein_points=2,
+        upf_penalty=1,
+        confidence=0.85,
+        reassurance_note="Good breakfast.",
+    )
+    sanitized = _sanitize_analysis(low_analysis)
+    assert sanitized.plant_points >= 10  # 1 color = 10
+    assert sanitized.whole_food_points == 18  # (3/5)*30 = 18
+    assert sanitized.protein_points == 8  # (2/5)*20 = 8
+    assert sanitized.upf_penalty == 4  # (1/5)*20 = 4

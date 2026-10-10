@@ -25,9 +25,9 @@ class Settings(BaseSettings):
 
     # OpenRouter Settings
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_PRIMARY_MODEL: str = "google/gemini-2.5-flash"
-    OPENROUTER_FALLBACK_MODEL: str = "meta-llama/llama-3.2-11b-vision-instruct"
-    OPENROUTER_REASONING_MODEL: str = "google/gemini-2.5-flash"
+    OPENROUTER_PRIMARY_MODEL: str = "google/gemini-3.8-flash"
+    OPENROUTER_FALLBACK_MODEL: str = "google/gemini-3.8-flash"
+    OPENROUTER_REASONING_MODEL: str = "openai/gpt-6-luna"
 
     # Auth & Security
     JWT_SECRET: str = "hackucd-secret-key-2026-supersecure"
