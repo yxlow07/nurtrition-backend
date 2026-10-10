@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
@@ -8,6 +9,8 @@ import stripe
 from hackucdbackend.core.config import settings
 from hackucdbackend.core.security import get_current_user
 from hackucdbackend.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/billing", tags=["Billing & Stripe Checkout"])
 
@@ -93,6 +96,48 @@ async def get_subscription_status(current_user: User = Depends(get_current_user)
             expires_at=sub.get("expires_at"),
             customer_id=sub.get("customer_id"),
         )
+
+    # Automatically query Stripe API for recent completed checkout sessions
+    if settings.STRIPE_SECRET_KEY:
+        try:
+            client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
+            sessions = client.v1.checkout.sessions.list(params={"limit": 20})
+            user_email = (current_user.email or "").strip().lower()
+
+            for s in sessions.data:
+                matched = False
+                meta = s.metadata.to_dict() if hasattr(s.metadata, "to_dict") else (s.metadata or {})
+                if s.client_reference_id and str(s.client_reference_id) == user_id_str:
+                    matched = True
+                elif meta.get("user_id") == user_id_str:
+                    matched = True
+                elif s.customer_details and getattr(s.customer_details, "email", None):
+                    cust_email = str(s.customer_details.email).strip().lower()
+                    if user_email and cust_email == user_email:
+                        matched = True
+
+                if matched and s.status == "complete" and s.payment_status in ("paid", "no_payment_required"):
+                    plan_id = meta.get("plan_id", "monthly")
+                    expires = (datetime.now(timezone.utc) + timedelta(days=365 if plan_id == "annual" else 30)).isoformat()
+                    cust_id = getattr(s, "customer", None)
+                    USER_SUBSCRIPTIONS[user_id_str] = {
+                        "is_active": True,
+                        "plan_id": plan_id,
+                        "session_id": s.id,
+                        "customer_id": cust_id,
+                        "activated_at": datetime.now(timezone.utc).isoformat(),
+                        "expires_at": expires,
+                    }
+                    return SubscriptionStatusResponse(
+                        user_id=user_id_str,
+                        is_subscriber=True,
+                        tier="Nurtrition Circle Pro",
+                        plan_id=plan_id,
+                        expires_at=expires,
+                        customer_id=cust_id,
+                    )
+        except Exception as e:
+            logger.warning(f"Error checking Stripe sessions for user {user_id_str}: {e}")
 
     return SubscriptionStatusResponse(
         user_id=user_id_str,
@@ -227,6 +272,19 @@ async def confirm_payment(
         "message": f"Successfully upgraded to {plan['name']}!",
         "tier": "Nurtrition Circle Pro",
         "expires_at": expires,
+    }
+
+
+@router.post("/cancel-subscription", summary="Cancel membership and revert to free tier")
+async def cancel_subscription(current_user: User = Depends(get_current_user)):
+    user_id_str = str(current_user.id)
+    if user_id_str in USER_SUBSCRIPTIONS:
+        USER_SUBSCRIPTIONS[user_id_str]["is_active"] = False
+
+    return {
+        "ok": True,
+        "message": "Subscription cancelled. Reverted to free tier.",
+        "tier": "Family Explorer (Free)",
     }
 
 

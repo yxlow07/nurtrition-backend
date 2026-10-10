@@ -54,3 +54,12 @@ async def test_confirm_payment_activates_pro(client: AsyncClient, auth_headers: 
     status_data = status_res.json()
     assert status_data["is_subscriber"] is True
     assert status_data["tier"] == "Nurtrition Circle Pro"
+
+    # Cancel subscription and verify it reverts to free tier
+    cancel_res = await client.post("/api/v1/billing/cancel-subscription", headers=auth_headers)
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["ok"] is True
+
+    status_after = await client.get("/api/v1/billing/status", headers=auth_headers)
+    assert status_after.status_code == 200
+    assert status_after.json()["is_subscriber"] is False
