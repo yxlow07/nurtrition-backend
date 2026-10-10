@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = "pk_test_sample_nurtrition_2026"
     STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PAYMENT_LINK: str = "https://buy.stripe.com/test_bJedR9dAJ5yJ1U6evi9Ve00"
     STRIPE_SUCCESS_URL: str = "https://wheatless-jermaine-aftmost.ngrok-free.dev/billing/success"
     STRIPE_CANCEL_URL: str = "https://wheatless-jermaine-aftmost.ngrok-free.dev/billing/cancel"
 

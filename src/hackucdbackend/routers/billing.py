@@ -73,7 +73,8 @@ class SubscriptionStatusResponse(BaseModel):
 async def get_billing_config():
     return {
         "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
-        "is_live_configured": bool(settings.STRIPE_SECRET_KEY),
+        "payment_link": settings.STRIPE_PAYMENT_LINK,
+        "is_live_configured": bool(settings.STRIPE_SECRET_KEY or settings.STRIPE_PAYMENT_LINK),
         "plans": PLANS,
     }
 
@@ -172,6 +173,21 @@ async def create_checkout_session(
         except Exception as e:
             # Fallback to simulation if Stripe network or credentials error occurs
             pass
+
+    # If live Stripe Payment Link is supplied, prioritize it
+    if settings.STRIPE_PAYMENT_LINK:
+        payment_link = settings.STRIPE_PAYMENT_LINK
+        sep = "&" if "?" in payment_link else "?"
+        direct_url = f"{payment_link}{sep}client_reference_id={user_id_str}"
+        if current_user.email:
+            direct_url += f"&prefilled_email={current_user.email}"
+        return CheckoutSessionResponse(
+            session_id=f"pl_{uuid.uuid4().hex[:12]}",
+            checkout_url=direct_url,
+            is_live=True,
+            plan_id=plan_key,
+            amount_cents=plan["price_cents"],
+        )
 
     # Local development & offline demonstration mode
     simulated_session_id = f"cs_test_nurtrition_{uuid.uuid4().hex[:12]}"
