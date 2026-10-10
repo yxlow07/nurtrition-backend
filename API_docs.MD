@@ -6,12 +6,10 @@ This document contains complete API specifications, data contracts, and code sni
 
 ## 1. General Architecture & Base Configuration
 
-### Base URLs
-- **Local Development (Web / Emulator):** `http://localhost:8000`
-- **Remote / Mobile Testing (ngrok Tunnel):** `https://wheatless-jermaine-aftmost.ngrok-free.dev`
-- **Physical Device (Expo via LAN):** `http://<YOUR_LOCAL_IP>:8000` *(e.g. `http://192.168.1.100:8000`)*
-- **Interactive Swagger UI:** `http://localhost:8000/docs` (or via ngrok: `https://wheatless-jermaine-aftmost.ngrok-free.dev/docs`)
-- **Alternative ReDoc UI:** `http://localhost:8000/redoc`
+### Base URL
+- **API Base URL:** `https://wheatless-jermaine-aftmost.ngrok-free.dev`
+- **Interactive Swagger UI:** `https://wheatless-jermaine-aftmost.ngrok-free.dev/docs`
+- **Alternative ReDoc UI:** `https://wheatless-jermaine-aftmost.ngrok-free.dev/redoc`
 
 ### Standard Headers
 ```http
@@ -417,7 +415,8 @@ export async function uploadMealPhoto(token: string, familyId?: string) {
   }
 
   // 3. Dispatch upload
-  const response = await fetch('http://192.168.1.100:8000/api/v1/meals/upload', {
+  const API_BASE_URL = 'https://wheatless-jermaine-aftmost.ngrok-free.dev';
+  const response = await fetch(`${API_BASE_URL}/api/v1/meals/upload`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -437,7 +436,8 @@ export async function uploadMealPhoto(token: string, familyId?: string) {
 ### 5.2 1-Tap Reaction Handler
 ```typescript
 export async function toggleReaction(mealId: string, emoji: string, token: string) {
-  const response = await fetch(`http://192.168.1.100:8000/api/v1/meals/${mealId}/react`, {
+  const API_BASE_URL = 'https://wheatless-jermaine-aftmost.ngrok-free.dev';
+  const response = await fetch(`${API_BASE_URL}/api/v1/meals/${mealId}/react`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
