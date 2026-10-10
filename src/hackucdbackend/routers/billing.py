@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
@@ -14,16 +16,38 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/billing", tags=["Billing & Stripe Checkout"])
 
-# In-memory subscription state cache for active demo users
-USER_SUBSCRIPTIONS: Dict[str, Dict[str, Any]] = {}
+SUBS_FILE = os.path.join(os.path.dirname(__file__), "../../../user_subscriptions.json")
+
+
+def _load_subscriptions() -> Dict[str, Dict[str, Any]]:
+    if os.path.exists(SUBS_FILE):
+        try:
+            with open(SUBS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_subscriptions() -> None:
+    try:
+        with open(SUBS_FILE, "w", encoding="utf-8") as f:
+            json.dump(USER_SUBSCRIPTIONS, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to persist subscriptions: {e}")
+
+
+# Subscription state cache persisted to user_subscriptions.json
+USER_SUBSCRIPTIONS: Dict[str, Dict[str, Any]] = _load_subscriptions()
 
 PLANS = {
     "monthly": {
         "id": "nurtrition_circle_monthly",
         "name": "Nurtrition Circle Pro (Monthly)",
         "price_cents": 699,
-        "price_display": "$6.99",
+        "price_display": "$10.00",
         "interval": "month",
+        
         "features": [
             "Unlimited AI vision plate audits",
             "Full family table feed & live care reactions (❤️ & 🍵)",
@@ -85,19 +109,8 @@ async def get_billing_config():
 @router.get("/status", response_model=SubscriptionStatusResponse, summary="Get current user subscription status")
 async def get_subscription_status(current_user: User = Depends(get_current_user)):
     user_id_str = str(current_user.id)
-    sub = USER_SUBSCRIPTIONS.get(user_id_str)
 
-    if sub and sub.get("is_active"):
-        return SubscriptionStatusResponse(
-            user_id=user_id_str,
-            is_subscriber=True,
-            tier="Nurtrition Circle Pro",
-            plan_id=sub.get("plan_id"),
-            expires_at=sub.get("expires_at"),
-            customer_id=sub.get("customer_id"),
-        )
-
-    # Automatically query Stripe API for recent completed checkout sessions
+    # 1. Query Stripe API for latest checkout sessions if live key configured
     if settings.STRIPE_SECRET_KEY:
         try:
             client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
@@ -117,6 +130,28 @@ async def get_subscription_status(current_user: User = Depends(get_current_user)
                         matched = True
 
                 if matched and s.status == "complete" and s.payment_status in ("paid", "no_payment_required"):
+                    sub_id = getattr(s, "subscription", None)
+                    if sub_id:
+                        try:
+                            stripe_sub = client.v1.subscriptions.retrieve(sub_id)
+                            if stripe_sub.status in ("canceled", "incomplete_expired", "unpaid"):
+                                USER_SUBSCRIPTIONS[user_id_str] = {
+                                    "is_active": False,
+                                    "subscription_id": sub_id,
+                                    "cancelled_at": datetime.now(timezone.utc).isoformat(),
+                                }
+                                _save_subscriptions()
+                                return SubscriptionStatusResponse(
+                                    user_id=user_id_str,
+                                    is_subscriber=False,
+                                    tier="Family Explorer (Free)",
+                                    plan_id=None,
+                                    expires_at=None,
+                                    customer_id=getattr(s, "customer", None),
+                                )
+                        except Exception as se:
+                            logger.warning(f"Error retrieving Stripe subscription {sub_id}: {se}")
+
                     plan_id = meta.get("plan_id", "monthly")
                     expires = (datetime.now(timezone.utc) + timedelta(days=365 if plan_id == "annual" else 30)).isoformat()
                     cust_id = getattr(s, "customer", None)
@@ -124,10 +159,12 @@ async def get_subscription_status(current_user: User = Depends(get_current_user)
                         "is_active": True,
                         "plan_id": plan_id,
                         "session_id": s.id,
+                        "subscription_id": sub_id,
                         "customer_id": cust_id,
                         "activated_at": datetime.now(timezone.utc).isoformat(),
                         "expires_at": expires,
                     }
+                    _save_subscriptions()
                     return SubscriptionStatusResponse(
                         user_id=user_id_str,
                         is_subscriber=True,
@@ -138,6 +175,18 @@ async def get_subscription_status(current_user: User = Depends(get_current_user)
                     )
         except Exception as e:
             logger.warning(f"Error checking Stripe sessions for user {user_id_str}: {e}")
+
+    # 2. Local fallback if Stripe offline or demo mode
+    sub = USER_SUBSCRIPTIONS.get(user_id_str)
+    if sub and sub.get("is_active"):
+        return SubscriptionStatusResponse(
+            user_id=user_id_str,
+            is_subscriber=True,
+            tier="Nurtrition Circle Pro",
+            plan_id=sub.get("plan_id"),
+            expires_at=sub.get("expires_at"),
+            customer_id=sub.get("customer_id"),
+        )
 
     return SubscriptionStatusResponse(
         user_id=user_id_str,
@@ -266,6 +315,7 @@ async def confirm_payment(
         "activated_at": datetime.now(timezone.utc).isoformat(),
         "expires_at": expires,
     }
+    _save_subscriptions()
 
     return {
         "ok": True,
@@ -278,8 +328,38 @@ async def confirm_payment(
 @router.post("/cancel-subscription", summary="Cancel membership and revert to free tier")
 async def cancel_subscription(current_user: User = Depends(get_current_user)):
     user_id_str = str(current_user.id)
-    if user_id_str in USER_SUBSCRIPTIONS:
-        USER_SUBSCRIPTIONS[user_id_str]["is_active"] = False
+    user_email = (current_user.email or "").strip().lower()
+
+    # Cancel active subscription in Stripe if present
+    if settings.STRIPE_SECRET_KEY:
+        try:
+            client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
+            sessions = client.v1.checkout.sessions.list(params={"limit": 20})
+            for s in sessions.data:
+                matched = False
+                meta = s.metadata.to_dict() if hasattr(s.metadata, "to_dict") else (s.metadata or {})
+                if s.client_reference_id and str(s.client_reference_id) == user_id_str:
+                    matched = True
+                elif meta.get("user_id") == user_id_str:
+                    matched = True
+                elif s.customer_details and getattr(s.customer_details, "email", None):
+                    if user_email and str(s.customer_details.email).strip().lower() == user_email:
+                        matched = True
+
+                if matched and getattr(s, "subscription", None):
+                    try:
+                        client.v1.subscriptions.cancel(s.subscription)
+                        logger.info(f"Cancelled Stripe subscription {s.subscription} for user {user_id_str}")
+                    except Exception as ce:
+                        logger.warning(f"Could not cancel Stripe subscription: {ce}")
+        except Exception as e:
+            logger.warning(f"Error checking Stripe during cancellation: {e}")
+
+    USER_SUBSCRIPTIONS[user_id_str] = {
+        "is_active": False,
+        "cancelled_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_subscriptions()
 
     return {
         "ok": True,

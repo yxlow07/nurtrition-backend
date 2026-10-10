@@ -1,0 +1,20 @@
+{
+  "3e2ba78d-a085-408f-8bbb-628c06015554": {
+    "is_active": false,
+    "subscription_id": "sub_1UP2k6Ha122fsCpvYbLfY7dE",
+    "cancelled_at": "2026-10-10T16:38:59.451447+00:00"
+  },
+  "3014f648-d608-4148-b1d9-59ac4a9f3681": {
+    "is_active": false,
+    "cancelled_at": "2026-10-10T15:43:32.433507+00:00"
+  },
+  "dfece1b2-0200-4d68-8485-36f28c52d3f6": {
+    "is_active": true,
+    "plan_id": "monthly",
+    "session_id": "cs_test_a12oS98q7KSXSfR9ZipIjYXSZm1IMSdRsq19aG32x2BghaSGNT7UQaTXcC",
+    "subscription_id": "sub_1UP1naHa122fsCpvJ5IeogYB",
+    "customer_id": "cus_VPrWimSJu5rZYM",
+    "activated_at": "2026-10-10T16:02:39.392003+00:00",
+    "expires_at": "2026-11-09T16:02:39.391973+00:00"
+  }
+}
