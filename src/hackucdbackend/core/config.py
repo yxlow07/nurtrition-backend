@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
+    # Stripe Billing Settings
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = "pk_test_sample_nurtrition_2026"
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_SUCCESS_URL: str = "https://wheatless-jermaine-aftmost.ngrok-free.dev/billing/success"
+    STRIPE_CANCEL_URL: str = "https://wheatless-jermaine-aftmost.ngrok-free.dev/billing/cancel"
+
     # CORS Settings
     CORS_ORIGINS: List[str] = [
         "http://localhost:8081",

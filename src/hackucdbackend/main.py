@@ -9,6 +9,7 @@ from hackucdbackend.core.database import init_db
 from hackucdbackend.routers.auth import router as auth_router
 from hackucdbackend.routers.meals import router as meals_router
 from hackucdbackend.routers.families import router as families_router
+from hackucdbackend.routers.billing import router as billing_router
 
 
 @asynccontextmanager
@@ -45,6 +46,7 @@ app.mount("/static/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.include_router(auth_router)
 app.include_router(meals_router)
 app.include_router(families_router)
+app.include_router(billing_router)
 
 
 @app.get("/", tags=["Health & Status"])
