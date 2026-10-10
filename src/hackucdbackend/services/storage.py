@@ -46,11 +46,12 @@ async def upload_image_to_supabase(
     public_url = get_storage_url(user_id, meal_id, ext)
 
     # Attempt upload to Supabase Storage if configured
-    if settings.SUPABASE_PROJECT_URL and settings.SUPABASE_PUBLISHABLE_KEY:
+    upload_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_PUBLISHABLE_KEY
+    if settings.SUPABASE_PROJECT_URL and upload_key:
         upload_endpoint = f"{settings.SUPABASE_PROJECT_URL.rstrip('/')}/storage/v1/object/{bucket}/{file_path}"
         headers = {
-            "Authorization": f"Bearer {settings.SUPABASE_PUBLISHABLE_KEY}",
-            "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": f"Bearer {upload_key}",
+            "apikey": upload_key,
             "Content-Type": content_type,
             "x-upsert": "true",
         }

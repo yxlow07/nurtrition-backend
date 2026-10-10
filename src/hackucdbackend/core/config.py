@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Supabase Settings
     SUPABASE_PROJECT_URL: str = ""
     SUPABASE_PUBLISHABLE_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_PASSWORD: str = ""
     SUPABASE_STORAGE_BUCKET: str = "meals"
 
